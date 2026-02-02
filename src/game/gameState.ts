@@ -1,12 +1,4 @@
-import {
-  GameState,
-  GameAction,
-  Cell,
-  Path,
-  Position,
-  Puzzle,
-} from './types';
-import {getPathColor} from '../utils/colors';
+import {GameState, GameAction, Cell, Position, Puzzle} from './types';
 
 // Create initial grid from puzzle
 export function createGrid(puzzle: Puzzle): Cell[][] {
@@ -19,35 +11,18 @@ export function createGrid(puzzle: Puzzle): Cell[][] {
         row,
         col,
         value: null,
-        pathId: null,
+        isOnPath: false,
       };
     }
   }
 
-  // Place endpoints on grid
-  for (const endpoint of puzzle.endpoints) {
-    for (const pos of endpoint.positions) {
-      grid[pos.row][pos.col].value = endpoint.id;
-    }
+  // Place checkpoint numbers on grid
+  for (const checkpoint of puzzle.checkpoints) {
+    const {row, col} = checkpoint.position;
+    grid[row][col].value = checkpoint.number;
   }
 
   return grid;
-}
-
-// Create initial paths from puzzle endpoints
-export function createPaths(puzzle: Puzzle): Map<number, Path> {
-  const paths = new Map<number, Path>();
-
-  for (const endpoint of puzzle.endpoints) {
-    paths.set(endpoint.id, {
-      id: endpoint.id,
-      color: getPathColor(endpoint.id),
-      cells: [],
-      isComplete: false,
-    });
-  }
-
-  return paths;
 }
 
 // Create initial game state from puzzle
@@ -55,11 +30,13 @@ export function createInitialState(puzzle: Puzzle): GameState {
   return {
     puzzle,
     grid: createGrid(puzzle),
-    paths: createPaths(puzzle),
-    currentPathId: null,
+    path: [],
+    nextCheckpoint: 1, // Start looking for checkpoint 1
     isDrawing: false,
     isComplete: false,
     moveCount: 0,
+    startTime: null,
+    endTime: null,
   };
 }
 
@@ -75,81 +52,113 @@ export function areAdjacent(a: Position, b: Position): boolean {
   return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
 }
 
-// Find which endpoint a position belongs to
-function findEndpointAtPosition(
-  puzzle: Puzzle,
-  position: Position,
-): number | null {
-  for (const endpoint of puzzle.endpoints) {
-    for (const pos of endpoint.positions) {
-      if (positionsEqual(pos, position)) {
-        return endpoint.id;
-      }
-    }
-  }
-  return null;
+// Get checkpoint number at position
+function getCheckpointAt(puzzle: Puzzle, position: Position): number | null {
+  const checkpoint = puzzle.checkpoints.find(
+    c => c.position.row === position.row && c.position.col === position.col,
+  );
+  return checkpoint ? checkpoint.number : null;
 }
 
-// Get the other endpoint position for a path
-function getOtherEndpoint(puzzle: Puzzle, pathId: number): Position | null {
-  const endpoint = puzzle.endpoints.find(e => e.id === pathId);
-  if (!endpoint) return null;
-  return endpoint.positions[1];
+// Check if path visits all checkpoints in order and fills all cells
+function checkWinCondition(state: GameState): boolean {
+  const {puzzle, path, grid} = state;
+  const totalCells = puzzle.size * puzzle.size;
+
+  // Path must fill all cells
+  if (path.length !== totalCells) return false;
+
+  // Check all checkpoints are visited in order
+  let nextExpected = 1;
+  for (const pos of path) {
+    const checkpointNum = getCheckpointAt(puzzle, pos);
+    if (checkpointNum !== null) {
+      if (checkpointNum !== nextExpected) return false;
+      nextExpected++;
+    }
+  }
+
+  // All checkpoints must have been visited
+  return nextExpected === puzzle.checkpoints.length + 1;
 }
 
 // Game state reducer
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'START_PATH': {
-      const {pathId, position} = action;
-      const path = state.paths.get(pathId);
+      const {position} = action;
+      const {puzzle, path} = state;
 
-      if (!path) return state;
+      // If we already have a path, check if touching any cell on the path
+      if (path.length > 0) {
+        const pathIndex = path.findIndex(p => positionsEqual(p, position));
 
-      // Clear existing path cells from grid
-      const newGrid = state.grid.map(row =>
-        row.map(cell => {
-          if (cell.pathId === pathId && cell.value !== pathId) {
-            return {...cell, pathId: null};
+        if (pathIndex !== -1) {
+          // Truncate path to this point (remove everything after)
+          const newPath = path.slice(0, pathIndex + 1);
+          const newGrid = state.grid.map(row =>
+            row.map(cell => ({...cell, isOnPath: false})),
+          );
+
+          // Mark only cells in new path as on path
+          for (const pos of newPath) {
+            newGrid[pos.row][pos.col].isOnPath = true;
           }
-          return cell;
-        }),
+
+          // Recalculate nextCheckpoint based on truncated path
+          let newNextCheckpoint = 1;
+          for (const pos of newPath) {
+            const checkpointNum = getCheckpointAt(puzzle, pos);
+            if (checkpointNum !== null && checkpointNum >= newNextCheckpoint) {
+              newNextCheckpoint = checkpointNum + 1;
+            }
+          }
+
+          return {
+            ...state,
+            grid: newGrid,
+            path: newPath,
+            nextCheckpoint: newNextCheckpoint,
+            isDrawing: true,
+            isComplete: false,
+          };
+        }
+
+        // Touched a cell not on the path - ignore
+        return state;
+      }
+
+      // Starting fresh: can only start from checkpoint 1
+      const checkpointNum = getCheckpointAt(puzzle, position);
+      if (checkpointNum !== 1) return state;
+
+      // Create new grid with this cell marked
+      const newGrid = state.grid.map(row =>
+        row.map(cell => ({...cell, isOnPath: false})),
       );
-
-      // Mark starting position
-      newGrid[position.row][position.col] = {
-        ...newGrid[position.row][position.col],
-        pathId,
-      };
-
-      const newPaths = new Map(state.paths);
-      newPaths.set(pathId, {
-        ...path,
-        cells: [position],
-        isComplete: false,
-      });
+      newGrid[position.row][position.col].isOnPath = true;
 
       return {
         ...state,
         grid: newGrid,
-        paths: newPaths,
-        currentPathId: pathId,
+        path: [position],
+        nextCheckpoint: 2, // Now looking for checkpoint 2
         isDrawing: true,
+        isComplete: false,
+        startTime: Date.now(),
+        endTime: null,
       };
     }
 
     case 'EXTEND_PATH': {
       const {position} = action;
-      const {currentPathId, grid, paths, puzzle} = state;
+      const {path, grid, puzzle, nextCheckpoint} = state;
 
-      if (!currentPathId || !state.isDrawing) return state;
+      if (!state.isDrawing || path.length === 0) return state;
 
-      const path = paths.get(currentPathId);
-      if (!path || path.cells.length === 0) return state;
+      const lastCell = path[path.length - 1];
 
-      const lastCell = path.cells[path.cells.length - 1];
-
-      // Check if adjacent to last cell
+      // Must be adjacent to last cell
       if (!areAdjacent(lastCell, position)) return state;
 
       // Check bounds
@@ -162,114 +171,102 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return state;
       }
 
-      const targetCell = grid[position.row][position.col];
-
       // Check if backtracking (going back to previous cell)
-      if (path.cells.length >= 2) {
-        const secondLast = path.cells[path.cells.length - 2];
+      if (path.length >= 2) {
+        const secondLast = path[path.length - 2];
         if (positionsEqual(secondLast, position)) {
           // Backtrack: remove last cell from path
-          const newCells = path.cells.slice(0, -1);
+          const removedCell = path[path.length - 1];
+          const newPath = path.slice(0, -1);
           const newGrid = state.grid.map(row => row.map(cell => ({...cell})));
+          newGrid[removedCell.row][removedCell.col].isOnPath = false;
 
-          // Clear the removed cell (unless it's an endpoint)
-          if (grid[lastCell.row][lastCell.col].value !== currentPathId) {
-            newGrid[lastCell.row][lastCell.col].pathId = null;
+          // Check if we're backtracking from a checkpoint
+          const removedCheckpoint = getCheckpointAt(puzzle, removedCell);
+          let newNextCheckpoint = nextCheckpoint;
+          if (removedCheckpoint !== null && removedCheckpoint === nextCheckpoint - 1) {
+            newNextCheckpoint = nextCheckpoint - 1;
           }
-
-          const newPaths = new Map(paths);
-          newPaths.set(currentPathId, {
-            ...path,
-            cells: newCells,
-            isComplete: false,
-          });
 
           return {
             ...state,
             grid: newGrid,
-            paths: newPaths,
+            path: newPath,
+            nextCheckpoint: newNextCheckpoint,
           };
         }
       }
 
-      // Check if cell is already occupied by another path
-      if (targetCell.pathId !== null && targetCell.pathId !== currentPathId) {
-        return state;
-      }
+      // Can't visit a cell already on the path (except backtracking handled above)
+      const alreadyOnPath = path.some(p => positionsEqual(p, position));
+      if (alreadyOnPath) return state;
 
-      // Check if cell is already in current path (no loops except backtracking)
-      const alreadyInPath = path.cells.some(c => positionsEqual(c, position));
-      if (alreadyInPath) return state;
+      // Check if this cell has a checkpoint number
+      const checkpointNum = getCheckpointAt(puzzle, position);
 
-      // Check if this is the matching endpoint
-      const isMatchingEndpoint =
-        targetCell.value === currentPathId &&
-        !positionsEqual(path.cells[0], position);
-
-      // If target has a value (endpoint), must be matching endpoint
-      if (
-        targetCell.value !== null &&
-        targetCell.value !== currentPathId
-      ) {
-        return state;
+      // If cell has a checkpoint, it must be the next one we're looking for
+      // (or we can pass through any checkpoint we've already visited)
+      if (checkpointNum !== null) {
+        if (checkpointNum > nextCheckpoint) {
+          // Can't skip ahead
+          return state;
+        }
+        if (checkpointNum < nextCheckpoint - 1) {
+          // Can't go back to an old checkpoint (except the one right before current)
+          // Actually for this game, once visited, you can't revisit
+          return state;
+        }
       }
 
       // Add cell to path
-      const newCells = [...path.cells, position];
+      const newPath = [...path, position];
       const newGrid = state.grid.map(row => row.map(cell => ({...cell})));
-      newGrid[position.row][position.col].pathId = currentPathId;
+      newGrid[position.row][position.col].isOnPath = true;
 
-      const newPaths = new Map(paths);
-      newPaths.set(currentPathId, {
-        ...path,
-        cells: newCells,
-        isComplete: isMatchingEndpoint,
-      });
+      // Update next checkpoint if we just reached one
+      let newNextCheckpoint = nextCheckpoint;
+      if (checkpointNum === nextCheckpoint) {
+        newNextCheckpoint = nextCheckpoint + 1;
+      }
 
-      return {
+      const newState = {
         ...state,
         grid: newGrid,
-        paths: newPaths,
+        path: newPath,
+        nextCheckpoint: newNextCheckpoint,
         moveCount: state.moveCount + 1,
       };
+
+      // Check for win
+      if (checkWinCondition(newState)) {
+        return {
+          ...newState,
+          isComplete: true,
+          isDrawing: false,
+          endTime: Date.now(),
+        };
+      }
+
+      return newState;
     }
 
     case 'END_DRAWING': {
       return {
         ...state,
         isDrawing: false,
-        currentPathId: null,
       };
     }
 
     case 'CLEAR_PATH': {
-      const {pathId} = action;
-      const path = state.paths.get(pathId);
-
-      if (!path) return state;
-
-      // Clear path cells from grid (except endpoints)
       const newGrid = state.grid.map(row =>
-        row.map(cell => {
-          if (cell.pathId === pathId && cell.value !== pathId) {
-            return {...cell, pathId: null};
-          }
-          return cell;
-        }),
+        row.map(cell => ({...cell, isOnPath: false})),
       );
-
-      const newPaths = new Map(state.paths);
-      newPaths.set(pathId, {
-        ...path,
-        cells: [],
-        isComplete: false,
-      });
 
       return {
         ...state,
         grid: newGrid,
-        paths: newPaths,
-        currentPathId: null,
+        path: [],
+        nextCheckpoint: 1,
         isDrawing: false,
       };
     }
@@ -286,6 +283,35 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         isComplete: true,
+      };
+    }
+
+    case 'UNDO': {
+      const {path, puzzle} = state;
+      if (path.length <= 1) {
+        // Can't undo past starting point, just reset
+        return createInitialState(puzzle);
+      }
+
+      // Remove last cell from path
+      const removedCell = path[path.length - 1];
+      const newPath = path.slice(0, -1);
+      const newGrid = state.grid.map(row => row.map(cell => ({...cell})));
+      newGrid[removedCell.row][removedCell.col].isOnPath = false;
+
+      // Check if we're undoing from a checkpoint
+      const removedCheckpoint = getCheckpointAt(puzzle, removedCell);
+      let newNextCheckpoint = state.nextCheckpoint;
+      if (removedCheckpoint !== null && removedCheckpoint === state.nextCheckpoint - 1) {
+        newNextCheckpoint = state.nextCheckpoint - 1;
+      }
+
+      return {
+        ...state,
+        grid: newGrid,
+        path: newPath,
+        nextCheckpoint: newNextCheckpoint,
+        isDrawing: false,
       };
     }
 

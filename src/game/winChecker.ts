@@ -2,64 +2,48 @@ import {GameState} from './types';
 
 // Check if all win conditions are met
 export function checkWinCondition(state: GameState): boolean {
-  const {grid, paths, puzzle} = state;
+  const {grid, path, puzzle, nextCheckpoint} = state;
+  const totalCells = puzzle.size * puzzle.size;
+  const totalCheckpoints = puzzle.checkpoints.length;
 
-  // 1. All paths must be complete (both endpoints connected)
-  for (const path of paths.values()) {
-    if (!path.isComplete) {
-      return false;
-    }
+  // 1. Path must fill all cells
+  if (path.length !== totalCells) {
+    return false;
   }
 
-  // 2. All cells must be filled
-  for (let row = 0; row < puzzle.size; row++) {
-    for (let col = 0; col < puzzle.size; col++) {
-      if (grid[row][col].pathId === null) {
-        return false;
-      }
-    }
+  // 2. All checkpoints must have been visited (nextCheckpoint should be past the last one)
+  if (nextCheckpoint <= totalCheckpoints) {
+    return false;
   }
-
-  // 3. No overlapping paths (implicit - enforced during path drawing)
 
   return true;
 }
 
-// Get completion statistics
+// Get completion statistics for the sequential path game
 export function getCompletionStats(state: GameState): {
-  pathsComplete: number;
-  totalPaths: number;
+  checkpointsVisited: number;
+  totalCheckpoints: number;
   cellsFilled: number;
   totalCells: number;
   percentComplete: number;
 } {
-  const {grid, paths, puzzle} = state;
+  const {puzzle, path, nextCheckpoint} = state;
 
-  const totalPaths = paths.size;
-  let pathsComplete = 0;
-  for (const path of paths.values()) {
-    if (path.isComplete) {
-      pathsComplete++;
-    }
-  }
+  const totalCheckpoints = puzzle.checkpoints.length;
+  // nextCheckpoint is 1-indexed; if nextCheckpoint is 3, we've visited 1 and 2 (so 2 checkpoints)
+  const checkpointsVisited = Math.max(0, nextCheckpoint - 1);
 
   const totalCells = puzzle.size * puzzle.size;
-  let cellsFilled = 0;
-  for (let row = 0; row < puzzle.size; row++) {
-    for (let col = 0; col < puzzle.size; col++) {
-      if (grid[row][col].pathId !== null) {
-        cellsFilled++;
-      }
-    }
-  }
+  const cellsFilled = path.length;
 
-  const percentComplete = Math.round(
-    ((pathsComplete / totalPaths) * 0.5 + (cellsFilled / totalCells) * 0.5) * 100,
-  );
+  // Calculate percent as weighted average of checkpoints and cells
+  const checkpointProgress = checkpointsVisited / totalCheckpoints;
+  const cellProgress = cellsFilled / totalCells;
+  const percentComplete = Math.round((checkpointProgress * 0.3 + cellProgress * 0.7) * 100);
 
   return {
-    pathsComplete,
-    totalPaths,
+    checkpointsVisited,
+    totalCheckpoints,
     cellsFilled,
     totalCells,
     percentComplete,

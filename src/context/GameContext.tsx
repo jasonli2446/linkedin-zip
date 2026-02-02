@@ -6,39 +6,26 @@ import React, {
   useMemo,
   ReactNode,
 } from 'react';
-import {
-  GameState,
-  GameAction,
-  Position,
-  Puzzle,
-} from '../game/types';
+import {GameState, GameAction, Position, Puzzle} from '../game/types';
 import {gameReducer, createInitialState} from '../game/gameState';
-import {checkWinCondition} from '../game/winChecker';
 import {generatePuzzle} from '../generator/puzzleGenerator';
 
 interface GameContextValue {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
-  startPath: (pathId: number, position: Position) => void;
+  startPath: (position: Position) => void;
   extendPath: (position: Position) => void;
   endDrawing: () => void;
-  clearPath: (pathId: number) => void;
+  clearPath: () => void;
   resetPuzzle: () => void;
-  newPuzzle: (size?: number, numPaths?: number) => void;
+  newPuzzle: (size?: number, numCheckpoints?: number) => void;
+  undo: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
 
 // Default puzzle for initial load
-const DEFAULT_PUZZLE: Puzzle = {
-  size: 5,
-  endpoints: [
-    {id: 1, positions: [{row: 0, col: 0}, {row: 4, col: 4}]},
-    {id: 2, positions: [{row: 0, col: 4}, {row: 4, col: 0}]},
-    {id: 3, positions: [{row: 2, col: 0}, {row: 2, col: 4}]},
-    {id: 4, positions: [{row: 0, col: 2}, {row: 4, col: 2}]},
-  ],
-};
+const DEFAULT_PUZZLE = generatePuzzle(5, 6);
 
 interface GameProviderProps {
   children: ReactNode;
@@ -51,8 +38,8 @@ export function GameProvider({children}: GameProviderProps): React.JSX.Element {
     createInitialState,
   );
 
-  const startPath = useCallback((pathId: number, position: Position) => {
-    dispatch({type: 'START_PATH', pathId, position});
+  const startPath = useCallback((position: Position) => {
+    dispatch({type: 'START_PATH', position});
   }, []);
 
   const extendPath = useCallback((position: Position) => {
@@ -63,25 +50,25 @@ export function GameProvider({children}: GameProviderProps): React.JSX.Element {
     dispatch({type: 'END_DRAWING'});
   }, []);
 
-  const clearPath = useCallback((pathId: number) => {
-    dispatch({type: 'CLEAR_PATH', pathId});
+  const clearPath = useCallback(() => {
+    dispatch({type: 'CLEAR_PATH'});
   }, []);
 
   const resetPuzzle = useCallback(() => {
     dispatch({type: 'RESET_PUZZLE'});
   }, []);
 
-  const newPuzzle = useCallback((size: number = 5, numPaths: number = 4) => {
-    const puzzle = generatePuzzle(size, numPaths);
-    dispatch({type: 'SET_PUZZLE', puzzle});
+  const undo = useCallback(() => {
+    dispatch({type: 'UNDO'});
   }, []);
 
-  // Check for win condition after each state change
-  React.useEffect(() => {
-    if (!state.isComplete && checkWinCondition(state)) {
-      dispatch({type: 'SET_COMPLETE'});
-    }
-  }, [state]);
+  const newPuzzle = useCallback(
+    (size: number = 5, numCheckpoints: number = 6) => {
+      const puzzle = generatePuzzle(size, numCheckpoints);
+      dispatch({type: 'SET_PUZZLE', puzzle});
+    },
+    [],
+  );
 
   const value = useMemo(
     () => ({
@@ -93,8 +80,9 @@ export function GameProvider({children}: GameProviderProps): React.JSX.Element {
       clearPath,
       resetPuzzle,
       newPuzzle,
+      undo,
     }),
-    [state, startPath, extendPath, endDrawing, clearPath, resetPuzzle, newPuzzle],
+    [state, startPath, extendPath, endDrawing, clearPath, resetPuzzle, newPuzzle, undo],
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

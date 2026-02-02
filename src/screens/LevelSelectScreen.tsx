@@ -20,7 +20,7 @@ export function LevelSelectScreen({
   const {newPuzzle} = useGame();
 
   const handleDifficultySelect = (config: DifficultyConfig) => {
-    newPuzzle(config.gridSize, config.numPaths);
+    newPuzzle(config.gridSize, config.numCheckpoints);
     onLevelSelect();
   };
 
@@ -41,8 +41,8 @@ export function LevelSelectScreen({
             <View style={styles.levelInfo}>
               <Text style={styles.levelName}>{config.name}</Text>
               <Text style={styles.levelDetails}>
-                {config.gridSize}x{config.gridSize} grid, {config.numPaths}{' '}
-                paths
+                {config.gridSize}x{config.gridSize} grid, {config.numCheckpoints}{' '}
+                checkpoints
               </Text>
             </View>
             <View style={styles.playButton}>

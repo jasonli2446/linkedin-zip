@@ -7,9 +7,10 @@ import {DIFFICULTIES} from '../game/types';
 
 interface GameHeaderProps {
   onNewPuzzle?: () => void;
+  onBack?: () => void;
 }
 
-export function GameHeader({onNewPuzzle}: GameHeaderProps): React.JSX.Element {
+export function GameHeader({onNewPuzzle, onBack}: GameHeaderProps): React.JSX.Element {
   const {state, resetPuzzle, newPuzzle} = useGame();
   const stats = getCompletionStats(state);
 
@@ -22,12 +23,19 @@ export function GameHeader({onNewPuzzle}: GameHeaderProps): React.JSX.Element {
     if (onNewPuzzle) {
       onNewPuzzle();
     } else {
-      newPuzzle(state.puzzle.size, state.puzzle.endpoints.length);
+      newPuzzle(state.puzzle.size, state.puzzle.checkpoints.length);
     }
   };
 
   return (
     <View style={styles.container}>
+      {/* Back button row */}
+      {onBack && (
+        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backButtonText}>{"< Back"}</Text>
+        </TouchableOpacity>
+      )}
+
       <View style={styles.topRow}>
         <View style={styles.levelInfo}>
           <Text style={styles.levelText}>{difficultyName}</Text>
@@ -39,9 +47,9 @@ export function GameHeader({onNewPuzzle}: GameHeaderProps): React.JSX.Element {
         <View style={styles.statsContainer}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>
-              {stats.pathsComplete}/{stats.totalPaths}
+              {stats.checkpointsVisited}/{stats.totalCheckpoints}
             </Text>
-            <Text style={styles.statLabel}>Paths</Text>
+            <Text style={styles.statLabel}>Checkpoints</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>
@@ -86,6 +94,14 @@ const styles = StyleSheet.create({
     padding: 16,
     width: '100%',
     maxWidth: 400,
+  },
+  backButton: {
+    marginBottom: 8,
+  },
+  backButtonText: {
+    color: COLORS.buttonPrimary,
+    fontSize: 16,
+    fontWeight: '600',
   },
   topRow: {
     flexDirection: 'row',

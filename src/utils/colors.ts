@@ -1,34 +1,59 @@
-// Path color palette - distinct colors for each path
+// UI Colors for LinkedIn Zip game
 
+export const COLORS = {
+  // Background colors
+  background: '#F5F5F7',
+  gridBackground: '#FFFFFF',
+  cellBackground: '#F8F9FA',
+  cellBorder: '#E5E7EB',
+
+  // Path colors (gradient-like purple/blue)
+  pathColor: '#6366F1', // Indigo - main path color
+  pathColorLight: '#818CF8',
+  pathColorDark: '#4F46E5',
+
+  // Checkpoint colors
+  checkpoint: '#1F2937', // Dark gray/black circles
+  checkpointBorder: '#374151',
+  checkpointText: '#FFFFFF',
+
+  // Next checkpoint highlight
+  nextCheckpoint: '#10B981', // Green highlight for next target
+  nextCheckpointBorder: '#059669',
+
+  // Text colors
+  text: '#1F2937',
+  textSecondary: '#6B7280',
+  textLight: '#FFFFFF',
+
+  // UI elements
+  success: '#10B981',
+  buttonPrimary: '#6366F1',
+  buttonSecondary: '#E5E7EB',
+  buttonText: '#FFFFFF',
+
+  // Header/navigation
+  headerBackground: '#FFFFFF',
+  progressBar: '#6366F1',
+  progressBarBackground: '#E5E7EB',
+};
+
+// Legacy exports for compatibility
 export const PATH_COLORS = [
-  '#FF6B6B', // Red
-  '#4ECDC4', // Teal
-  '#45B7D1', // Sky Blue
-  '#96CEB4', // Sage Green
-  '#FFEAA7', // Yellow
-  '#DDA0DD', // Plum
-  '#98D8C8', // Mint
-  '#F7DC6F', // Gold
-  '#BB8FCE', // Lavender
-  '#85C1E9', // Light Blue
-  '#F8B500', // Orange
-  '#82E0AA', // Light Green
+  '#6366F1',
+  '#8B5CF6',
+  '#EC4899',
+  '#F43F5E',
+  '#F97316',
+  '#EAB308',
+  '#22C55E',
+  '#14B8A6',
+  '#06B6D4',
+  '#3B82F6',
+  '#A855F7',
+  '#D946EF',
 ];
 
 export const getPathColor = (pathId: number): string => {
   return PATH_COLORS[(pathId - 1) % PATH_COLORS.length];
-};
-
-// UI Colors
-export const COLORS = {
-  background: '#1a1a2e',
-  gridBackground: '#16213e',
-  cellBackground: '#1a1a2e',
-  cellBorder: '#2a2a4e',
-  cellHighlight: '#3a3a5e',
-  text: '#ffffff',
-  textSecondary: '#9ca3af',
-  success: '#4ade80',
-  buttonPrimary: '#4f46e5',
-  buttonSecondary: '#374151',
 };

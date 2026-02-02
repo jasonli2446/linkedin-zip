@@ -1,41 +1,52 @@
 import {generatePuzzle, generatePuzzleWithDifficulty} from '../src/generator/puzzleGenerator';
-import {solvePuzzle, isValidPuzzle, countSolutions} from '../src/generator/solver';
-import {Puzzle} from '../src/game/types';
+import {Puzzle, Checkpoint} from '../src/game/types';
 
 describe('Puzzle Generator', () => {
   describe('generatePuzzle', () => {
     it('should generate a puzzle with correct size', () => {
-      const puzzle = generatePuzzle(5, 4);
+      const puzzle = generatePuzzle(5, 6);
       expect(puzzle.size).toBe(5);
     });
 
-    it('should generate a puzzle with correct number of endpoints', () => {
-      const puzzle = generatePuzzle(5, 4);
-      expect(puzzle.endpoints.length).toBe(4);
+    it('should generate a puzzle with correct number of checkpoints', () => {
+      const puzzle = generatePuzzle(5, 6);
+      expect(puzzle.checkpoints.length).toBe(6);
     });
 
-    it('should have unique endpoint IDs', () => {
-      const puzzle = generatePuzzle(6, 5);
-      const ids = puzzle.endpoints.map(e => e.id);
-      const uniqueIds = new Set(ids);
-      expect(uniqueIds.size).toBe(ids.length);
-    });
-
-    it('should place endpoints within grid bounds', () => {
-      const puzzle = generatePuzzle(5, 4);
-      for (const endpoint of puzzle.endpoints) {
-        for (const pos of endpoint.positions) {
-          expect(pos.row).toBeGreaterThanOrEqual(0);
-          expect(pos.row).toBeLessThan(puzzle.size);
-          expect(pos.col).toBeGreaterThanOrEqual(0);
-          expect(pos.col).toBeLessThan(puzzle.size);
-        }
+    it('should have sequential checkpoint numbers starting from 1', () => {
+      const puzzle = generatePuzzle(6, 8);
+      const numbers = puzzle.checkpoints.map(c => c.number);
+      for (let i = 0; i < numbers.length; i++) {
+        expect(numbers[i]).toBe(i + 1);
       }
     });
 
-    it('should generate a solvable puzzle', () => {
-      const puzzle = generatePuzzle(5, 4);
-      expect(isValidPuzzle(puzzle)).toBe(true);
+    it('should place checkpoints within grid bounds', () => {
+      const puzzle = generatePuzzle(5, 6);
+      for (const checkpoint of puzzle.checkpoints) {
+        expect(checkpoint.position.row).toBeGreaterThanOrEqual(0);
+        expect(checkpoint.position.row).toBeLessThan(puzzle.size);
+        expect(checkpoint.position.col).toBeGreaterThanOrEqual(0);
+        expect(checkpoint.position.col).toBeLessThan(puzzle.size);
+      }
+    });
+
+    it('should generate a solution path', () => {
+      const puzzle = generatePuzzle(5, 6);
+      expect(puzzle.solution).toBeDefined();
+      expect(puzzle.solution!.length).toBe(puzzle.size * puzzle.size);
+    });
+
+    it('should have checkpoints placed on the solution path', () => {
+      const puzzle = generatePuzzle(5, 6);
+      const solution = puzzle.solution!;
+
+      for (const checkpoint of puzzle.checkpoints) {
+        const onPath = solution.some(
+          pos => pos.row === checkpoint.position.row && pos.col === checkpoint.position.col
+        );
+        expect(onPath).toBe(true);
+      }
     });
 
     it('should clamp size to valid range', () => {
@@ -46,9 +57,27 @@ describe('Puzzle Generator', () => {
       expect(tooLarge.size).toBeLessThanOrEqual(10);
     });
 
-    it('should clamp number of paths to valid range', () => {
-      const puzzle = generatePuzzle(5, 20);
-      expect(puzzle.endpoints.length).toBeLessThanOrEqual(6); // 25/4 = 6
+    it('should clamp number of checkpoints to valid range', () => {
+      const puzzle = generatePuzzle(5, 50);
+      expect(puzzle.checkpoints.length).toBeLessThanOrEqual(25); // size*size
+    });
+
+    it('should have first checkpoint at start of solution', () => {
+      const puzzle = generatePuzzle(5, 6);
+      const firstCheckpoint = puzzle.checkpoints[0];
+      const firstSolutionCell = puzzle.solution![0];
+
+      expect(firstCheckpoint.position.row).toBe(firstSolutionCell.row);
+      expect(firstCheckpoint.position.col).toBe(firstSolutionCell.col);
+    });
+
+    it('should have last checkpoint at end of solution', () => {
+      const puzzle = generatePuzzle(5, 6);
+      const lastCheckpoint = puzzle.checkpoints[puzzle.checkpoints.length - 1];
+      const lastSolutionCell = puzzle.solution![puzzle.solution!.length - 1];
+
+      expect(lastCheckpoint.position.row).toBe(lastSolutionCell.row);
+      expect(lastCheckpoint.position.col).toBe(lastSolutionCell.col);
     });
   });
 
@@ -56,160 +85,90 @@ describe('Puzzle Generator', () => {
     it('should generate easy puzzle with correct parameters', () => {
       const puzzle = generatePuzzleWithDifficulty('easy');
       expect(puzzle.size).toBe(5);
-      expect(puzzle.endpoints.length).toBe(4);
+      expect(puzzle.checkpoints.length).toBe(6);
     });
 
     it('should generate medium puzzle with correct parameters', () => {
       const puzzle = generatePuzzleWithDifficulty('medium');
       expect(puzzle.size).toBe(6);
-      expect(puzzle.endpoints.length).toBe(5);
+      expect(puzzle.checkpoints.length).toBe(8);
     });
 
     it('should generate hard puzzle with correct parameters', () => {
       const puzzle = generatePuzzleWithDifficulty('hard');
       expect(puzzle.size).toBe(7);
-      expect(puzzle.endpoints.length).toBe(6);
+      expect(puzzle.checkpoints.length).toBe(10);
     });
 
-    it('should generate solvable puzzles for easy difficulty', () => {
-      // Easy difficulty should reliably generate solvable puzzles
-      const puzzle = generatePuzzleWithDifficulty('easy');
-      expect(isValidPuzzle(puzzle)).toBe(true);
+    it('should generate expert puzzle with correct parameters', () => {
+      const puzzle = generatePuzzleWithDifficulty('expert');
+      expect(puzzle.size).toBe(8);
+      expect(puzzle.checkpoints.length).toBe(12);
     });
 
-    it('should generate solvable puzzles for medium difficulty', () => {
-      const puzzle = generatePuzzleWithDifficulty('medium');
-      expect(isValidPuzzle(puzzle)).toBe(true);
+    it('should generate master puzzle with correct parameters', () => {
+      const puzzle = generatePuzzleWithDifficulty('master');
+      expect(puzzle.size).toBe(9);
+      expect(puzzle.checkpoints.length).toBe(14);
+    });
+
+    it('should generate valid solution for all difficulties', () => {
+      const difficulties = ['easy', 'medium', 'hard', 'expert', 'master'] as const;
+
+      for (const difficulty of difficulties) {
+        const puzzle = generatePuzzleWithDifficulty(difficulty);
+        expect(puzzle.solution).toBeDefined();
+        expect(puzzle.solution!.length).toBe(puzzle.size * puzzle.size);
+      }
     });
   });
-});
 
-describe('Puzzle Solver', () => {
-  describe('solvePuzzle', () => {
-    it('should solve a simple puzzle', () => {
-      // 3x3 grid with 3 horizontal paths - definitely solvable
-      const puzzle: Puzzle = {
-        size: 3,
-        endpoints: [
-          {id: 1, positions: [{row: 0, col: 0}, {row: 0, col: 2}]},
-          {id: 2, positions: [{row: 1, col: 0}, {row: 1, col: 2}]},
-          {id: 3, positions: [{row: 2, col: 0}, {row: 2, col: 2}]},
-        ],
-      };
+  describe('Solution Path Validity', () => {
+    it('should have solution path visiting all cells exactly once', () => {
+      const puzzle = generatePuzzle(5, 6);
+      const solution = puzzle.solution!;
+      const visited = new Set<string>();
 
-      const solution = solvePuzzle(puzzle);
-      expect(solution).not.toBeNull();
-      expect(solution!.length).toBe(3);
+      for (const pos of solution) {
+        const key = `${pos.row},${pos.col}`;
+        expect(visited.has(key)).toBe(false);
+        visited.add(key);
+      }
+
+      expect(visited.size).toBe(puzzle.size * puzzle.size);
     });
 
-    it('should return paths that connect endpoints', () => {
-      // Simple solvable puzzle - 3 horizontal paths
-      const puzzle: Puzzle = {
-        size: 3,
-        endpoints: [
-          {id: 1, positions: [{row: 0, col: 0}, {row: 0, col: 2}]},
-          {id: 2, positions: [{row: 1, col: 0}, {row: 1, col: 2}]},
-          {id: 3, positions: [{row: 2, col: 0}, {row: 2, col: 2}]},
-        ],
-      };
+    it('should have solution path with adjacent cells only', () => {
+      const puzzle = generatePuzzle(5, 6);
+      const solution = puzzle.solution!;
 
-      const solution = solvePuzzle(puzzle);
-      expect(solution).not.toBeNull();
+      for (let i = 1; i < solution.length; i++) {
+        const prev = solution[i - 1];
+        const curr = solution[i];
 
-      for (const path of solution!) {
-        const endpoint = puzzle.endpoints.find(e => e.id === path.id);
-        expect(endpoint).toBeDefined();
+        const rowDiff = Math.abs(curr.row - prev.row);
+        const colDiff = Math.abs(curr.col - prev.col);
 
-        const firstCell = path.cells[0];
-        const lastCell = path.cells[path.cells.length - 1];
-
-        const startsAtEndpoint =
-          (firstCell.row === endpoint!.positions[0].row &&
-            firstCell.col === endpoint!.positions[0].col) ||
-          (firstCell.row === endpoint!.positions[1].row &&
-            firstCell.col === endpoint!.positions[1].col);
-
-        const endsAtEndpoint =
-          (lastCell.row === endpoint!.positions[0].row &&
-            lastCell.col === endpoint!.positions[0].col) ||
-          (lastCell.row === endpoint!.positions[1].row &&
-            lastCell.col === endpoint!.positions[1].col);
-
-        expect(startsAtEndpoint).toBe(true);
-        expect(endsAtEndpoint).toBe(true);
+        // Should be exactly one step in one direction
+        expect(rowDiff + colDiff).toBe(1);
       }
     });
 
-    it('should return null for unsolvable puzzle', () => {
-      // Isolated endpoints that can't connect without crossing
-      const puzzle: Puzzle = {
-        size: 2,
-        endpoints: [
-          {id: 1, positions: [{row: 0, col: 0}, {row: 1, col: 1}]},
-          {id: 2, positions: [{row: 0, col: 1}, {row: 1, col: 0}]},
-        ],
-      };
+    it('should have checkpoints in order along the solution path', () => {
+      const puzzle = generatePuzzle(6, 8);
+      const solution = puzzle.solution!;
 
-      const solution = solvePuzzle(puzzle);
-      expect(solution).toBeNull();
-    });
-  });
+      // Find index of each checkpoint in the solution
+      const checkpointIndices = puzzle.checkpoints.map(cp => {
+        return solution.findIndex(
+          pos => pos.row === cp.position.row && pos.col === cp.position.col
+        );
+      });
 
-  describe('isValidPuzzle', () => {
-    it('should return true for valid puzzle', () => {
-      // Solvable 3x3 puzzle with horizontal paths
-      const puzzle: Puzzle = {
-        size: 3,
-        endpoints: [
-          {id: 1, positions: [{row: 0, col: 0}, {row: 0, col: 2}]},
-          {id: 2, positions: [{row: 1, col: 0}, {row: 1, col: 2}]},
-          {id: 3, positions: [{row: 2, col: 0}, {row: 2, col: 2}]},
-        ],
-      };
-
-      expect(isValidPuzzle(puzzle)).toBe(true);
-    });
-
-    it('should return false for invalid puzzle', () => {
-      const puzzle: Puzzle = {
-        size: 2,
-        endpoints: [
-          {id: 1, positions: [{row: 0, col: 0}, {row: 1, col: 1}]},
-          {id: 2, positions: [{row: 0, col: 1}, {row: 1, col: 0}]},
-        ],
-      };
-
-      expect(isValidPuzzle(puzzle)).toBe(false);
-    });
-  });
-
-  describe('countSolutions', () => {
-    it('should count solutions correctly', () => {
-      // Solvable puzzle - horizontal paths
-      const puzzle: Puzzle = {
-        size: 3,
-        endpoints: [
-          {id: 1, positions: [{row: 0, col: 0}, {row: 0, col: 2}]},
-          {id: 2, positions: [{row: 1, col: 0}, {row: 1, col: 2}]},
-          {id: 3, positions: [{row: 2, col: 0}, {row: 2, col: 2}]},
-        ],
-      };
-
-      const count = countSolutions(puzzle);
-      expect(count).toBeGreaterThanOrEqual(1);
-    });
-
-    it('should return 0 for unsolvable puzzle', () => {
-      const puzzle: Puzzle = {
-        size: 2,
-        endpoints: [
-          {id: 1, positions: [{row: 0, col: 0}, {row: 1, col: 1}]},
-          {id: 2, positions: [{row: 0, col: 1}, {row: 1, col: 0}]},
-        ],
-      };
-
-      const count = countSolutions(puzzle);
-      expect(count).toBe(0);
+      // Checkpoints should appear in ascending order along the path
+      for (let i = 1; i < checkpointIndices.length; i++) {
+        expect(checkpointIndices[i]).toBeGreaterThan(checkpointIndices[i - 1]);
+      }
     });
   });
 });

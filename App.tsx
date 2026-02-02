@@ -27,7 +27,7 @@ function App(): React.JSX.Element {
             {showLevelSelect ? (
               <LevelSelectScreen onLevelSelect={handleLevelSelect} />
             ) : (
-              <GameScreen />
+              <GameScreen onBack={handleBackToMenu} />
             )}
           </View>
         </GameProvider>

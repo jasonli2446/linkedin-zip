@@ -5,19 +5,16 @@ import {COLORS} from '../utils/colors';
 
 interface CellProps {
   cell: CellType;
-  pathColor: string | null;
   size: number;
-  isEndpoint: boolean;
+  isNextCheckpoint?: boolean;
 }
 
 export function Cell({
   cell,
-  pathColor,
   size,
-  isEndpoint,
+  isNextCheckpoint = false,
 }: CellProps): React.JSX.Element {
-  const backgroundColor = pathColor || COLORS.cellBackground;
-  const showNumber = cell.value !== null;
+  const hasCheckpoint = cell.value !== null;
 
   return (
     <View
@@ -26,21 +23,23 @@ export function Cell({
         {
           width: size,
           height: size,
-          backgroundColor,
         },
       ]}>
-      {showNumber && (
+      {hasCheckpoint && (
         <View
           style={[
-            styles.endpointCircle,
+            styles.checkpointCircle,
             {
-              backgroundColor: pathColor || COLORS.cellHighlight,
-              borderColor: pathColor ? 'rgba(255,255,255,0.5)' : 'transparent',
+              backgroundColor: COLORS.checkpoint,
+              borderColor: isNextCheckpoint
+                ? COLORS.nextCheckpointBorder
+                : 'transparent',
+              borderWidth: isNextCheckpoint ? 3 : 0,
             },
           ]}>
           <Text
             style={[
-              styles.endpointText,
+              styles.checkpointText,
               {
                 fontSize: size * 0.35,
               },
@@ -57,19 +56,20 @@ const styles = StyleSheet.create({
   cell: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: COLORS.cellBorder,
+    backgroundColor: COLORS.cellBackground,
   },
-  endpointCircle: {
-    width: '70%',
-    height: '70%',
+  checkpointCircle: {
+    width: '65%',
+    height: '65%',
     borderRadius: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    zIndex: 10,
   },
-  endpointText: {
-    color: COLORS.text,
+  checkpointText: {
     fontWeight: 'bold',
+    color: COLORS.checkpointText,
   },
 });

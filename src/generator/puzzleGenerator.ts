@@ -1,13 +1,4 @@
-import {Position, Puzzle, Endpoint, Path, DIRECTIONS} from '../game/types';
-import {positionsEqual} from '../game/gameState';
-import {isInBounds, getAdjacentPositions} from '../game/pathLogic';
-import {isValidPuzzle} from './solver';
-
-interface GeneratorState {
-  grid: (number | null)[][];
-  paths: Path[];
-  size: number;
-}
+import {Position, Puzzle, Checkpoint, DIRECTIONS} from '../game/types';
 
 // Shuffle array in place (Fisher-Yates)
 function shuffleArray<T>(array: T[]): T[] {
@@ -19,302 +10,206 @@ function shuffleArray<T>(array: T[]): T[] {
   return result;
 }
 
-// Get random element from array
-function randomElement<T>(array: T[]): T {
-  return array[Math.floor(Math.random() * array.length)];
+// Check if position is within grid bounds
+function isInBounds(pos: Position, size: number): boolean {
+  return pos.row >= 0 && pos.row < size && pos.col >= 0 && pos.col < size;
 }
 
-// Create empty grid
-function createEmptyGrid(size: number): (number | null)[][] {
-  const grid: (number | null)[][] = [];
-  for (let row = 0; row < size; row++) {
-    grid[row] = new Array(size).fill(null);
-  }
-  return grid;
+// Get adjacent positions
+function getAdjacentPositions(pos: Position): Position[] {
+  return [
+    {row: pos.row - 1, col: pos.col},
+    {row: pos.row + 1, col: pos.col},
+    {row: pos.row, col: pos.col - 1},
+    {row: pos.row, col: pos.col + 1},
+  ];
 }
 
-// Find empty cell adjacent to any existing path
-function findAdjacentEmptyCell(state: GeneratorState): Position | null {
-  const candidates: Position[] = [];
-
-  for (let row = 0; row < state.size; row++) {
-    for (let col = 0; col < state.size; col++) {
-      if (state.grid[row][col] === null) {
-        // Check if adjacent to any path
-        const pos = {row, col};
-        const hasAdjacentPath = getAdjacentPositions(pos).some(adj => {
-          if (!isInBounds(adj, state.size)) return false;
-          return state.grid[adj.row][adj.col] !== null;
-        });
-
-        if (hasAdjacentPath || state.paths.length === 0) {
-          candidates.push(pos);
-        }
-      }
-    }
-  }
-
-  if (candidates.length === 0) return null;
-  return randomElement(candidates);
+// Check if two positions are equal
+function positionsEqual(a: Position, b: Position): boolean {
+  return a.row === b.row && a.col === b.col;
 }
 
-// Find any empty cell
-function findEmptyCell(state: GeneratorState): Position | null {
-  const emptyCells: Position[] = [];
+// Generate a Hamiltonian path (visits every cell exactly once)
+function generateHamiltonianPath(size: number): Position[] | null {
+  const totalCells = size * size;
+  const visited: boolean[][] = Array.from({length: size}, () =>
+    Array(size).fill(false),
+  );
 
-  for (let row = 0; row < state.size; row++) {
-    for (let col = 0; col < state.size; col++) {
-      if (state.grid[row][col] === null) {
-        emptyCells.push({row, col});
-      }
-    }
-  }
+  // Try starting from different corners/edges for variety
+  const startPositions = shuffleArray([
+    {row: 0, col: 0},
+    {row: 0, col: size - 1},
+    {row: size - 1, col: 0},
+    {row: size - 1, col: size - 1},
+    {row: Math.floor(size / 2), col: 0},
+    {row: 0, col: Math.floor(size / 2)},
+  ]);
 
-  if (emptyCells.length === 0) return null;
-  return randomElement(emptyCells);
-}
+  for (const startPos of startPositions) {
+    const path: Position[] = [];
 
-// Generate a random path from starting position
-function generateRandomPath(
-  state: GeneratorState,
-  pathId: number,
-  startPos: Position,
-  minLength: number,
-  maxLength: number,
-): Position[] | null {
-  const path: Position[] = [startPos];
-  state.grid[startPos.row][startPos.col] = pathId;
-
-  const targetLength = minLength + Math.floor(Math.random() * (maxLength - minLength + 1));
-
-  let attempts = 0;
-  const maxAttempts = 100;
-
-  while (path.length < targetLength && attempts < maxAttempts) {
-    attempts++;
-
-    const lastCell = path[path.length - 1];
-    const adjacentCells = shuffleArray(getAdjacentPositions(lastCell));
-
-    let extended = false;
-    for (const adj of adjacentCells) {
-      if (!isInBounds(adj, state.size)) continue;
-      if (state.grid[adj.row][adj.col] !== null) continue;
-
-      // Extend path
-      path.push(adj);
-      state.grid[adj.row][adj.col] = pathId;
-      extended = true;
-      break;
-    }
-
-    if (!extended) {
-      // Can't extend further, path is stuck
-      break;
-    }
-  }
-
-  // Path must be at least minLength
-  if (path.length < minLength) {
-    // Clear path from grid
-    for (const pos of path) {
-      state.grid[pos.row][pos.col] = null;
-    }
-    return null;
-  }
-
-  return path;
-}
-
-// Generate puzzle by filling grid with paths
-function generateFilledPuzzle(size: number, numPaths: number): Puzzle | null {
-  const state: GeneratorState = {
-    grid: createEmptyGrid(size),
-    paths: [],
-    size,
-  };
-
-  const minPathLength = Math.max(3, Math.floor((size * size) / numPaths) - 2);
-  const maxPathLength = Math.floor((size * size) / numPaths) + 3;
-
-  for (let i = 0; i < numPaths; i++) {
-    const pathId = i + 1;
-
-    // Find starting position
-    let startPos: Position | null;
-    if (i === 0) {
-      // First path can start anywhere
-      startPos = findEmptyCell(state);
-    } else {
-      // Subsequent paths should start adjacent to existing paths
-      startPos = findAdjacentEmptyCell(state);
-      if (!startPos) {
-        startPos = findEmptyCell(state);
+    // Reset visited
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        visited[r][c] = false;
       }
     }
 
-    if (!startPos) {
-      // No empty cells available
-      return null;
-    }
-
-    // Generate random path
-    const pathCells = generateRandomPath(
-      state,
-      pathId,
-      startPos,
-      minPathLength,
-      maxPathLength,
-    );
-
-    if (!pathCells) {
-      // Failed to generate path, try regenerating
-      return null;
-    }
-
-    state.paths.push({
-      id: pathId,
-      color: '',
-      cells: pathCells,
-      isComplete: true,
-    });
-  }
-
-  // Check if all cells are filled
-  let emptyCells = 0;
-  for (let row = 0; row < size; row++) {
-    for (let col = 0; col < size; col++) {
-      if (state.grid[row][col] === null) {
-        emptyCells++;
-      }
+    if (findHamiltonianPath(startPos, visited, path, size, totalCells)) {
+      return path;
     }
   }
 
-  // Try to fill remaining cells by extending existing paths
-  while (emptyCells > 0) {
-    let filled = false;
+  return null;
+}
 
-    for (const path of shuffleArray([...state.paths])) {
-      // Try to extend from either endpoint
-      for (const endpoint of [path.cells[0], path.cells[path.cells.length - 1]]) {
-        const adjacentEmpty = shuffleArray(getAdjacentPositions(endpoint)).filter(
-          adj =>
-            isInBounds(adj, size) && state.grid[adj.row][adj.col] === null,
-        );
+// Recursive backtracking to find Hamiltonian path
+function findHamiltonianPath(
+  pos: Position,
+  visited: boolean[][],
+  path: Position[],
+  size: number,
+  totalCells: number,
+): boolean {
+  path.push(pos);
+  visited[pos.row][pos.col] = true;
 
-        if (adjacentEmpty.length > 0) {
-          const newCell = adjacentEmpty[0];
-          state.grid[newCell.row][newCell.col] = path.id;
+  if (path.length === totalCells) {
+    return true;
+  }
 
-          // Add to path at appropriate end
-          if (positionsEqual(endpoint, path.cells[0])) {
-            path.cells.unshift(newCell);
-          } else {
-            path.cells.push(newCell);
-          }
+  // Get neighbors in random order for variety
+  const neighbors = shuffleArray(getAdjacentPositions(pos)).filter(
+    adj => isInBounds(adj, size) && !visited[adj.row][adj.col],
+  );
 
-          emptyCells--;
-          filled = true;
-          break;
-        }
-      }
+  // Use Warnsdorff's rule: prefer cells with fewer unvisited neighbors
+  neighbors.sort((a, b) => {
+    const aCount = getAdjacentPositions(a).filter(
+      n => isInBounds(n, size) && !visited[n.row][n.col],
+    ).length;
+    const bCount = getAdjacentPositions(b).filter(
+      n => isInBounds(n, size) && !visited[n.row][n.col],
+    ).length;
+    return aCount - bCount;
+  });
 
-      if (filled) break;
-    }
-
-    if (!filled) {
-      // Can't fill remaining cells
-      return null;
+  for (const neighbor of neighbors) {
+    if (findHamiltonianPath(neighbor, visited, path, size, totalCells)) {
+      return true;
     }
   }
 
-  // Create puzzle with endpoints
-  const endpoints: Endpoint[] = state.paths.map(path => ({
-    id: path.id,
-    positions: [path.cells[0], path.cells[path.cells.length - 1]] as [Position, Position],
-  }));
+  // Backtrack
+  path.pop();
+  visited[pos.row][pos.col] = false;
+  return false;
+}
 
-  return {
-    size,
-    endpoints,
-    solution: state.paths,
-  };
+// Place checkpoints along the path at good intervals
+function placeCheckpoints(
+  path: Position[],
+  numCheckpoints: number,
+): Checkpoint[] {
+  const checkpoints: Checkpoint[] = [];
+  const pathLength = path.length;
+
+  // First checkpoint is always at start (position 0)
+  checkpoints.push({
+    number: 1,
+    position: {...path[0]},
+  });
+
+  // Last checkpoint is always at end
+  const lastCheckpointNum = numCheckpoints;
+
+  // Distribute remaining checkpoints evenly along the path
+  if (numCheckpoints > 2) {
+    const innerCheckpoints = numCheckpoints - 2;
+    const spacing = pathLength / (innerCheckpoints + 1);
+
+    for (let i = 1; i <= innerCheckpoints; i++) {
+      const pathIndex = Math.round(spacing * i);
+      const clampedIndex = Math.min(pathIndex, pathLength - 2);
+
+      checkpoints.push({
+        number: i + 1,
+        position: {...path[clampedIndex]},
+      });
+    }
+  }
+
+  // Add final checkpoint at end
+  checkpoints.push({
+    number: lastCheckpointNum,
+    position: {...path[pathLength - 1]},
+  });
+
+  return checkpoints;
 }
 
 // Main puzzle generation function
 export function generatePuzzle(
   size: number = 5,
-  numPaths: number = 4,
-  maxAttempts: number = 50,
+  numCheckpoints: number = 6,
 ): Puzzle {
   // Validate parameters
   size = Math.max(4, Math.min(10, size));
-  numPaths = Math.max(2, Math.min(Math.floor((size * size) / 4), numPaths));
+  numCheckpoints = Math.max(2, Math.min(size * size, numCheckpoints));
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const puzzle = generateFilledPuzzle(size, numPaths);
+  // Try to generate a Hamiltonian path
+  let path = generateHamiltonianPath(size);
 
-    if (puzzle && isValidPuzzle(puzzle)) {
-      // Remove solution from returned puzzle (player shouldn't see it)
-      return {
-        size: puzzle.size,
-        endpoints: puzzle.endpoints,
-      };
-    }
+  // Fallback to a simpler snake pattern if Hamiltonian fails
+  if (!path) {
+    path = generateSnakePath(size);
   }
 
-  // Fallback: return a simple guaranteed-solvable puzzle
-  return createFallbackPuzzle(size, numPaths);
-}
-
-// Create a simple fallback puzzle when generation fails
-function createFallbackPuzzle(size: number, numPaths: number): Puzzle {
-  // Create simple horizontal paths
-  const endpoints: Endpoint[] = [];
-
-  for (let i = 0; i < numPaths; i++) {
-    const row = i % size;
-    endpoints.push({
-      id: i + 1,
-      positions: [
-        {row, col: 0},
-        {row, col: size - 1},
-      ],
-    });
-  }
-
-  // If we need more paths, add vertical ones
-  if (numPaths > size) {
-    for (let i = size; i < numPaths; i++) {
-      const col = i - size;
-      endpoints.push({
-        id: i + 1,
-        positions: [
-          {row: 0, col},
-          {row: size - 1, col},
-        ],
-      });
-    }
-  }
+  // Place checkpoints along the path
+  const checkpoints = placeCheckpoints(path, numCheckpoints);
 
   return {
     size,
-    endpoints: endpoints.slice(0, numPaths),
+    checkpoints,
+    solution: path,
   };
+}
+
+// Generate a simple snake path (guaranteed to work)
+function generateSnakePath(size: number): Position[] {
+  const path: Position[] = [];
+
+  for (let row = 0; row < size; row++) {
+    if (row % 2 === 0) {
+      // Left to right
+      for (let col = 0; col < size; col++) {
+        path.push({row, col});
+      }
+    } else {
+      // Right to left
+      for (let col = size - 1; col >= 0; col--) {
+        path.push({row, col});
+      }
+    }
+  }
+
+  return path;
 }
 
 // Generate puzzle with specific difficulty
 export function generatePuzzleWithDifficulty(
   difficulty: 'easy' | 'medium' | 'hard' | 'expert' | 'master',
 ): Puzzle {
-  const configs: Record<string, {size: number; numPaths: number}> = {
-    easy: {size: 5, numPaths: 4},
-    medium: {size: 6, numPaths: 5},
-    hard: {size: 7, numPaths: 6},
-    expert: {size: 8, numPaths: 7},
-    master: {size: 9, numPaths: 8},
+  const configs: Record<string, {size: number; numCheckpoints: number}> = {
+    easy: {size: 5, numCheckpoints: 6},
+    medium: {size: 6, numCheckpoints: 8},
+    hard: {size: 7, numCheckpoints: 10},
+    expert: {size: 8, numCheckpoints: 12},
+    master: {size: 9, numCheckpoints: 14},
   };
 
   const config = configs[difficulty] || configs.easy;
-  return generatePuzzle(config.size, config.numPaths);
+  return generatePuzzle(config.size, config.numCheckpoints);
 }

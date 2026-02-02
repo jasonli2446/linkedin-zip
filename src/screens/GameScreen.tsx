@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {View, Text, StyleSheet, Modal, TouchableOpacity} from 'react-native';
 import {Grid} from '../components/Grid';
 import {GameHeader} from '../components/GameHeader';
@@ -12,9 +12,46 @@ import Animated, {
   withDelay,
 } from 'react-native-reanimated';
 
-export function GameScreen(): React.JSX.Element {
-  const {state, newPuzzle} = useGame();
-  const {isComplete} = state;
+interface GameScreenProps {
+  onBack?: () => void;
+}
+
+// Format time as MM:SS.d
+function formatTime(ms: number): string {
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  const tenths = Math.floor((ms % 1000) / 100);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}.${tenths}`;
+}
+
+export function GameScreen({onBack}: GameScreenProps): React.JSX.Element {
+  const {state, newPuzzle, undo, resetPuzzle} = useGame();
+  const {isComplete, startTime, endTime} = state;
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  // Update timer every second while playing
+  useEffect(() => {
+    if (!startTime) {
+      setElapsedTime(0);
+      return;
+    }
+
+    if (isComplete && endTime) {
+      setElapsedTime(endTime - startTime);
+      return;
+    }
+
+    // Update immediately
+    setElapsedTime(Date.now() - startTime);
+
+    // Then update every 100ms for smooth decimal display
+    const interval = setInterval(() => {
+      setElapsedTime(Date.now() - startTime);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [startTime, isComplete, endTime]);
 
   // Animation values for win celebration
   const scale = useSharedValue(1);
@@ -39,23 +76,47 @@ export function GameScreen(): React.JSX.Element {
     opacity: opacity.value,
   }));
 
-  const handleNewPuzzle = () => {
-    newPuzzle(state.puzzle.size, state.puzzle.endpoints.length);
+  const handlePlayAgain = () => {
+    // Reset the same puzzle
+    resetPuzzle();
   };
 
   const handleNextLevel = () => {
-    // Increase difficulty slightly
-    const newSize = Math.min(9, state.puzzle.size + 1);
-    const newPaths = Math.min(8, state.puzzle.endpoints.length + 1);
-    newPuzzle(newSize, newPaths);
+    // New puzzle with same difficulty (same size and checkpoint count)
+    newPuzzle(state.puzzle.size, state.puzzle.checkpoints.length);
+  };
+
+  const handleUndo = () => {
+    undo();
   };
 
   return (
     <View style={styles.container}>
-      <GameHeader onNewPuzzle={handleNewPuzzle} />
+      <GameHeader onNewPuzzle={handleNextLevel} onBack={onBack} />
+
+      {/* Timer display */}
+      <View style={styles.timerContainer}>
+        <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
+      </View>
 
       <View style={styles.gridContainer}>
         <Grid />
+      </View>
+
+      {/* Bottom Undo button */}
+      <View style={styles.bottomButtons}>
+        <TouchableOpacity
+          style={styles.bottomButton}
+          onPress={handleUndo}
+          disabled={state.path.length === 0}>
+          <Text
+            style={[
+              styles.bottomButtonText,
+              state.path.length === 0 && styles.disabledText,
+            ]}>
+            Undo
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Win Modal */}
@@ -63,14 +124,15 @@ export function GameScreen(): React.JSX.Element {
         <View style={styles.modalOverlay}>
           <Animated.View style={[styles.modalContent, animatedStyle]}>
             <Text style={styles.winTitle}>Puzzle Complete!</Text>
+            <Text style={styles.winTime}>{formatTime(elapsedTime)}</Text>
             <Text style={styles.winSubtitle}>
-              You connected all the paths!
+              Great job!
             </Text>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.playAgainButton]}
-                onPress={handleNewPuzzle}>
+                onPress={handlePlayAgain}>
                 <Text style={styles.modalButtonText}>Play Again</Text>
               </TouchableOpacity>
 
@@ -94,10 +156,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 50,
   },
+  timerContainer: {
+    paddingVertical: 8,
+  },
+  timerText: {
+    fontSize: 32,
+    fontWeight: '300',
+    color: COLORS.text,
+    fontVariant: ['tabular-nums'],
+  },
   gridContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  bottomButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  bottomButton: {
+    flex: 1,
+    backgroundColor: '#E5E7EB',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  bottomButtonText: {
+    color: COLORS.textSecondary,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  disabledText: {
+    opacity: 0.4,
   },
   modalOverlay: {
     flex: 1,
@@ -118,6 +210,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.success,
     marginBottom: 8,
+  },
+  winTime: {
+    fontSize: 48,
+    fontWeight: '300',
+    color: COLORS.text,
+    marginBottom: 8,
+    fontVariant: ['tabular-nums'],
   },
   winSubtitle: {
     fontSize: 16,
