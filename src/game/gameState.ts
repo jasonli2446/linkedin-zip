@@ -35,7 +35,7 @@ export function createInitialState(puzzle: Puzzle): GameState {
     isDrawing: false,
     isComplete: false,
     moveCount: 0,
-    startTime: null,
+    startTime: Date.now(), // Timer starts when level loads
     endTime: null,
   };
 }
@@ -145,8 +145,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         nextCheckpoint: 2, // Now looking for checkpoint 2
         isDrawing: true,
         isComplete: false,
-        startTime: Date.now(),
-        endTime: null,
       };
     }
 

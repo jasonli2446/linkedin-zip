@@ -141,6 +141,14 @@ export function GameScreen({onBack}: GameScreenProps): React.JSX.Element {
                 onPress={handleNextLevel}>
                 <Text style={styles.modalButtonText}>Next Level</Text>
               </TouchableOpacity>
+
+              {onBack && (
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.menuButton]}
+                  onPress={onBack}>
+                  <Text style={styles.menuButtonText}>Back to Menu</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </Animated.View>
         </View>
@@ -240,9 +248,18 @@ const styles = StyleSheet.create({
   nextLevelButton: {
     backgroundColor: COLORS.buttonPrimary,
   },
+  menuButton: {
+    backgroundColor: 'transparent',
+    marginTop: 8,
+  },
   modalButtonText: {
     color: COLORS.text,
     fontSize: 16,
     fontWeight: '600',
+  },
+  menuButtonText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
