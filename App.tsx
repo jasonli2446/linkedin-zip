@@ -1,44 +1,45 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, {useState} from 'react';
+import {StatusBar, StyleSheet, View} from 'react-native';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {GameProvider} from './src/context/GameContext';
+import {GameScreen} from './src/screens/GameScreen';
+import {LevelSelectScreen} from './src/screens/LevelSelectScreen';
+import {COLORS} from './src/utils/colors';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+function App(): React.JSX.Element {
+  const [showLevelSelect, setShowLevelSelect] = useState(true);
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+  const handleLevelSelect = () => {
+    setShowLevelSelect(false);
+  };
 
-  return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
-  );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
+  const handleBackToMenu = () => {
+    setShowLevelSelect(true);
+  };
 
   return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
+    <GestureHandlerRootView style={styles.container}>
+      <SafeAreaProvider>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+        <GameProvider>
+          <View style={styles.container}>
+            {showLevelSelect ? (
+              <LevelSelectScreen onLevelSelect={handleLevelSelect} />
+            ) : (
+              <GameScreen />
+            )}
+          </View>
+        </GameProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.background,
   },
 });
 
