@@ -10,6 +10,12 @@ A React Native iOS puzzle game inspired by LinkedIn's Zip game. Draw a continuou
 4. Path can only move to adjacent cells (up/down/left/right)
 5. Cannot cross your own path
 
+## Screenshots
+
+| Difficulty Selection | Gameplay | Puzzle Complete |
+|:---:|:---:|:---:|
+| ![Difficulty Selection](IMG_1718.PNG) | ![Gameplay](IMG_1720.PNG) | ![Puzzle Complete](IMG_1721.PNG) |
+
 ## Features
 
 - Multiple difficulty levels (Easy 5x5 to Master 9x9)
